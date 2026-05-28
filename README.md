@@ -30,10 +30,39 @@ services:
     volumes:
       - hemt-data:/app/instance
       - hemt-attachments:/app/attachments
+    environment:
+      - SECRET_KEY=change-this
+      - API_BASE_URL=http://localhost:5000
+      - STORAGE_BACKEND=local
+      - STORAGE_PATH=/app/attachments
 
 volumes:
   hemt-data:
   hemt-attachments:
+```
+
+### With Cloudflare R2 / S3
+
+```yaml
+services:
+  hemt:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - hemt-data:/app/instance
+    environment:
+      - SECRET_KEY=change-this
+      - API_BASE_URL=http://localhost:5000
+      - STORAGE_BACKEND=s3
+      - S3_BUCKET_NAME=hemt
+      - S3_REGION=auto
+      - S3_ENDPOINT_URL=https://<accountid>.r2.cloudflarestorage.com
+      - AWS_ACCESS_KEY_ID=your-access-key-id
+      - AWS_SECRET_ACCESS_KEY=your-secret-access-key
+
+volumes:
+  hemt-data:
 ```
 
 ### With PostgreSQL
@@ -83,9 +112,12 @@ volumes:
 | `DATABASE_URL` | `sqlite:///emailtrap.db` | SQLAlchemy connection string |
 | `STORAGE_BACKEND` | `local` | `local` or `s3` |
 | `STORAGE_PATH` | `attachments` | Local attachment directory |
-| `S3_BUCKET_NAME` | `emailtrap` | S3 bucket for attachments |
+| `S3_BUCKET_NAME` | `emailtrap` | S3/R2 bucket for attachments |
 | `S3_REGION` | `us-east-1` | AWS region |
-| `S3_PREFIX` | `attachments` | S3 key prefix |
+| `S3_PREFIX` | `attachments` | S3/R2 key prefix |
+| `S3_ENDPOINT_URL` | *(empty)* | Custom S3-compatible endpoint (e.g. Cloudflare R2) |
+| `AWS_ACCESS_KEY_ID` | *(empty)* | Access key for S3/R2 |
+| `AWS_SECRET_ACCESS_KEY` | *(empty)* | Secret key for S3/R2 |
 
 ## API
 

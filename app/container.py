@@ -26,6 +26,7 @@ def create_storage_backend() -> StorageBackend:
             bucket_name=os.environ.get("S3_BUCKET_NAME", "emailtrap"),
             region=os.environ.get("S3_REGION", "us-east-1"),
             prefix=os.environ.get("S3_PREFIX", "attachments"),
+            endpoint_url=os.environ.get("S3_ENDPOINT_URL", ""),
         )
 
     from app.storage.local_storage import LocalStorageBackend

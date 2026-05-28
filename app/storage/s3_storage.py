@@ -7,7 +7,7 @@ from app.interfaces.storage import StorageBackend
 
 
 class S3StorageBackend(StorageBackend):
-    def __init__(self, bucket_name: str, region: str = "us-east-1", prefix: str = ""):
+    def __init__(self, bucket_name: str, region: str = "us-east-1", prefix: str = "", endpoint_url: str = ""):
         self.bucket_name = bucket_name
         self.region = region
         self.prefix = prefix.strip("/")
@@ -18,7 +18,10 @@ class S3StorageBackend(StorageBackend):
         except ImportError:
             raise ImportError("boto3 is required for S3 storage. Install with: pip install boto3")
 
-        self.client = boto3.client("s3", region_name=region)
+        kwargs = dict(region_name=region)
+        if endpoint_url:
+            kwargs["endpoint_url"] = endpoint_url
+        self.client = boto3.client("s3", **kwargs)
         self._ensure_bucket()
 
     def _ensure_bucket(self):
