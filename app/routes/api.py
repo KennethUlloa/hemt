@@ -110,7 +110,10 @@ def list_messages():
 
     offset = (page - 1) * per_page
 
-    if q:
+    if q and tag:
+        messages = db.search_messages_by_tag(user_id, q, tag, limit=per_page, offset=offset)
+        total = db.get_total_search_results_by_tag(user_id, q, tag)
+    elif q:
         messages = db.search_messages(user_id, q, limit=per_page, offset=offset)
         total = db.get_total_search_results(user_id, q)
     elif tag:

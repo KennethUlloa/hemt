@@ -30,6 +30,20 @@
         </div>
         <button type="submit" class="btn btn-primary btn-sm">Update Password</button>
       </form>
+
+      <form method="post" action="{{ url_for('web.settings_toggle_active') }}" class="password-form" onsubmit="return confirm('Are you sure? {% if user.is_active %}Disabling will log you out.{% endif %}')">
+        <h3>Account Status</h3>
+        <p class="hint" style="margin-bottom:8px">
+          {% if user.is_active %}
+            Your account is currently <strong>active</strong>. Disabling it will prevent login and API access until re-enabled.
+          {% else %}
+            Your account is currently <strong>disabled</strong>. Enable it to restore access.
+          {% endif %}
+        </p>
+        <button type="submit" class="btn btn-sm {{ 'btn-warning' if user.is_active else 'btn-primary' }}">
+          {{ 'Disable Account' if user.is_active else 'Enable Account' }}
+        </button>
+      </form>
     </div>
   </section>
 

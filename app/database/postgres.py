@@ -19,17 +19,25 @@ class PostgresBackend(DatabaseBackend):
         user = User.query.filter_by(username=username).first()
         if not user:
             return None
-        return {"id": user.id, "username": user.username, "password_hash": user.password_hash}
+        return {"id": user.id, "username": user.username, "password_hash": user.password_hash, "is_active": user.is_active}
 
     def get_user_by_id(self, user_id: int) -> Optional[dict]:
         user = User.query.get(user_id)
         if not user:
             return None
-        return {"id": user.id, "username": user.username, "password_hash": user.password_hash}
+        return {"id": user.id, "username": user.username, "password_hash": user.password_hash, "is_active": user.is_active}
 
     def update_password(self, user_id: int, new_password_hash: str) -> None:
         User.query.filter_by(id=user_id).update({"password_hash": new_password_hash})
         db.session.commit()
+
+    def set_user_active(self, user_id: int, is_active: bool) -> bool:
+        user = User.query.get(user_id)
+        if not user:
+            return False
+        user.is_active = is_active
+        db.session.commit()
+        return True
 
     def create_message(
         self,
@@ -255,6 +263,41 @@ class PostgresBackend(DatabaseBackend):
         pattern = f"%{query}%"
         return Message.query.filter(
             Message.user_id == user_id,
+            db.or_(
+                Message.subject.ilike(pattern),
+                Message.to_addr.ilike(pattern),
+                Message.from_addr.ilike(pattern),
+                Message.tag.ilike(pattern),
+            ),
+        ).count()
+
+    def search_messages_by_tag(
+        self, user_id: int, query: str, tag: str, limit: int = 50, offset: int = 0
+    ) -> list[dict]:
+        pattern = f"%{query}%"
+        msgs = (
+            Message.query.filter(
+                Message.user_id == user_id,
+                Message.tag == tag,
+                db.or_(
+                    Message.subject.ilike(pattern),
+                    Message.to_addr.ilike(pattern),
+                    Message.from_addr.ilike(pattern),
+                    Message.tag.ilike(pattern),
+                ),
+            )
+            .order_by(Message.received_at.desc())
+            .limit(limit)
+            .offset(offset)
+            .all()
+        )
+        return [self._message_to_dict(m) for m in msgs]
+
+    def get_total_search_results_by_tag(self, user_id: int, query: str, tag: str) -> int:
+        pattern = f"%{query}%"
+        return Message.query.filter(
+            Message.user_id == user_id,
+            Message.tag == tag,
             db.or_(
                 Message.subject.ilike(pattern),
                 Message.to_addr.ilike(pattern),

@@ -32,6 +32,10 @@ def verify_api_key(raw_key: str) -> dict | None:
     if not check_password_hash(stored["key_hash"], raw_key):
         return None
 
+    user = db.get_user_by_id(stored["user_id"])
+    if not user or not user.get("is_active", True):
+        return None
+
     db.update_api_key_used(stored["id"])
     return {
         "user_id": stored["user_id"],

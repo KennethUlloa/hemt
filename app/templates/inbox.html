@@ -1,63 +1,283 @@
 {% extends "base.html" %}
 {% block title %}Inbox - HEMT{% endblock %}
+{% block body_class %}page-inbox{% endblock %}
 {% block content %}
 <div class="inbox-header">
-  <h1>Inbox</h1>
-  <form method="get" class="search-form" action="{{ url_for('web.inbox') }}">
-    <input type="search" name="q" class="search-input" placeholder="Search subject, sender, recipient, tag..." value="{{ query or '' }}">
-    {% if current_tag %}<input type="hidden" name="tag" value="{{ current_tag }}">{% endif %}
-  </form>
-  {% if tags %}
-    <div class="tag-list">
-      <a href="{{ url_for('web.inbox', q=query if query else None) }}" class="tag-chip {% if not current_tag and not query %}tag-active{% endif %}">All</a>
-      {% for tag in tags %}
-        <a href="{{ url_for('web.inbox', tag=tag, q=query if query else None) }}" class="tag-chip {% if current_tag == tag %}tag-active{% endif %}">{{ tag }}</a>
-      {% endfor %}
+  <h1>Inbox <button class="btn btn-sm btn-reload" id="btn-reload" title="Reload">&olarr;</button></h1>
+  <form method="get" class="search-form" id="search-form">
+    <div class="search-wrap">
+      <input type="search" name="q" class="search-input" placeholder="Search subject, sender, recipient, tag..." value="{{ query or '' }}" id="search-input">
+      <span class="search-spinner" id="search-spinner"></span>
     </div>
-  {% endif %}
+  </form>
+  <div class="tag-list" id="tag-list">
+    <a href="#" class="tag-chip {% if not current_tag and not query %}tag-active{% endif %}" data-tag="">All</a>
+    {% for tag in tags %}
+      <a href="#" class="tag-chip {% if current_tag == tag %}tag-active{% endif %}" data-tag="{{ tag }}">{{ tag }}</a>
+    {% endfor %}
+  </div>
 </div>
 
-{% if messages %}
-  <table class="message-table">
-    <thead>
-      <tr>
-        <th>From</th>
-        <th>To</th>
-        <th>Subject</th>
-        <th>Tag</th>
-        <th>Received</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for msg in messages %}
-        <tr onclick="window.location='{{ url_for('web.message_detail', message_id=msg.id) }}'">
-          <td class="from">{{ msg.from_addr }}</td>
-          <td class="to">{{ msg.to_addr }}</td>
-          <td class="subject">{{ msg.subject or '(no subject)' }}</td>
-          <td>{% if msg.tag %}<span class="tag-badge">{{ msg.tag }}</span>{% endif %}</td>
-          <td class="date">{{ msg.received_at[:19] | replace('T', ' ') }}</td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<div class="inbox-panes">
+  <div class="pane-list" id="pane-list">
+    <div id="inbox-list">
+      {% if messages %}
+        <div class="msg-list">
+          {% for msg in messages %}
+            <div class="msg-row" data-id="{{ msg.id }}">
+              <div class="msg-row-from">{{ msg.from_addr }}</div>
+              <div class="msg-row-subj">{{ msg.subject or '(no subject)' }}</div>
+              <div class="msg-row-meta">
+                <span class="msg-row-tag">{% if msg.tag %}<span class="tag-badge">{{ msg.tag }}</span>{% endif %}</span>
+                <span class="msg-row-date">{{ msg.received_at[:19] | replace('T', ' ') }}</span>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+        <div class="pagination">
+          {% if page > 1 %}
+            <a href="{{ url_for('web.inbox', page=page-1, tag=current_tag if current_tag else None, q=query if query else None) }}" class="btn btn-sm">&laquo; Previous</a>
+          {% endif %}
+          <span class="page-info">Page {{ page }} of {{ total_pages }}</span>
+          {% if page < total_pages %}
+            <a href="{{ url_for('web.inbox', page=page+1, tag=current_tag if current_tag else None, q=query if query else None) }}" class="btn btn-sm">Next &raquo;</a>
+          {% endif %}
+        </div>
+      {% else %}
+        <div class="empty-state" id="empty-list-state">
+          {% if query %}
+            <p>No results for "{{ query }}".</p>
+          {% else %}
+            <p>No messages yet.</p>
+            <p class="hint">Use an API key to send a test email, or compose one from here.</p>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
 
-  <div class="pagination">
-    {% if page > 1 %}
-      <a href="{{ url_for('web.inbox', page=page-1, tag=current_tag if current_tag else None, q=query if query else None) }}" class="btn btn-sm">&laquo; Previous</a>
-    {% endif %}
-    <span class="page-info">Page {{ page }} of {{ total_pages }}</span>
-    {% if page < total_pages %}
-      <a href="{{ url_for('web.inbox', page=page+1, tag=current_tag if current_tag else None, q=query if query else None) }}" class="btn btn-sm">Next &raquo;</a>
-    {% endif %}
+  <div class="pane-detail" id="pane-detail">
+    <div class="detail-placeholder" id="detail-placeholder">
+      <p>Select a message to view</p>
+    </div>
+    <div class="detail-content" id="detail-content" hidden></div>
   </div>
-{% else %}
-  <div class="empty-state">
-    {% if query %}
-      <p>No results for "{{ query }}".</p>
-    {% else %}
-      <p>No messages yet.</p>
-      <p class="hint">Use an API key to send a test email, or compose one from here.</p>
-    {% endif %}
-  </div>
-{% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+{
+  let currentParams = {
+    q: {{ query | tojson | safe }},
+    tag: {{ current_tag | tojson | safe }},
+    page: {{ page | tojson | safe }},
+  };
+  let currentAbort = null;
+  let selectedId = null;
+
+  const esc = s => {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  };
+
+  const showSpinner = show => {
+    document.getElementById('search-spinner')?.classList.toggle('visible', show);
+  };
+
+  async function loadInbox(params) {
+    if (currentAbort) currentAbort.abort();
+    currentAbort = new AbortController();
+
+    currentParams = { ...currentParams, ...params };
+
+    const cleaned = {};
+    for (const [k, v] of Object.entries(currentParams)) {
+      if (v) cleaned[k] = v;
+    }
+
+    const url = '/api/_inbox?' + new URLSearchParams(cleaned);
+    showSpinner(true);
+
+    try {
+      const res = await fetch(url, { signal: currentAbort.signal });
+      const data = await res.json();
+      renderList(data);
+      renderTags(data);
+      updateUrl(data);
+      syncInputs(data);
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+    } finally {
+      showSpinner(false);
+      if (currentAbort && !currentAbort.signal.aborted) currentAbort = null;
+    }
+  }
+
+  function renderList(data) {
+    const el = document.getElementById('inbox-list');
+
+    if (!data.messages?.length) {
+      const msg = data.query
+        ? `<p>No results for "${esc(data.query)}".</p>`
+        : '<p>No messages yet.</p><p class="hint">Use an API key to send a test email, or compose one from here.</p>';
+      el.innerHTML = `<div class="empty-state">${msg}</div>`;
+      return;
+    }
+
+    let html = '<div class="msg-list">';
+    for (const m of data.messages) {
+      const date = m.received_at ? m.received_at.slice(0, 19).replace('T', ' ') : '';
+      const tag = m.tag ? `<span class="tag-badge">${esc(m.tag)}</span>` : '';
+      html += `<div class="msg-row${selectedId === m.id ? ' msg-row-selected' : ''}" data-id="${m.id}">`;
+      html += `<div class="msg-row-from">${esc(m.from_addr)}</div>`;
+      html += `<div class="msg-row-subj">${esc(m.subject || '(no subject)')}</div>`;
+      html += `<div class="msg-row-meta"><span class="msg-row-tag">${tag}</span><span class="msg-row-date">${date}</span></div>`;
+      html += '</div>';
+    }
+    html += '</div>';
+
+    html += '<div class="pagination">';
+    if (data.page > 1) {
+      html += `<a href="#" class="btn btn-sm page-link" data-page="${data.page - 1}">&laquo; Previous</a>`;
+    }
+    html += `<span class="page-info">Page ${data.page} of ${data.total_pages}</span>`;
+    if (data.page < data.total_pages) {
+      html += `<a href="#" class="btn btn-sm page-link" data-page="${data.page + 1}">Next &raquo;</a>`;
+    }
+    html += '</div>';
+
+    el.innerHTML = html;
+
+    for (const a of el.querySelectorAll('.page-link')) {
+      a.addEventListener('click', e => {
+        e.preventDefault();
+        loadInbox({ page: parseInt(a.dataset.page) });
+      });
+    }
+
+    for (const row of el.querySelectorAll('.msg-row')) {
+      row.addEventListener('click', () => {
+        selectMessage(parseInt(row.dataset.id));
+      });
+    }
+  }
+
+  async function selectMessage(id) {
+    selectedId = id;
+
+    for (const row of document.querySelectorAll('.msg-list .msg-row')) {
+      row.classList.toggle('msg-row-selected', parseInt(row.dataset.id) === id);
+    }
+
+    const placeholder = document.getElementById('detail-placeholder');
+    const content = document.getElementById('detail-content');
+    placeholder.hidden = true;
+    content.hidden = false;
+    content.innerHTML = '<div class="detail-loading">Loading...</div>';
+
+    try {
+      const res = await fetch(`/api/_message/${id}`);
+      if (!res.ok) throw new Error('Not found');
+      const data = await res.json();
+      renderDetail(data);
+    } catch {
+      content.innerHTML = '<div class="detail-loading">Failed to load message</div>';
+    }
+  }
+
+  function renderDetail(data) {
+    const m = data.message;
+    const atts = data.attachments || [];
+    const date = m.received_at ? m.received_at.slice(0, 19).replace('T', ' ') : '';
+
+    let html = '<div class="detail-header">';
+    html += `<h2>${esc(m.subject || '(no subject)')}</h2>`;
+    html += '</div>';
+
+    html += '<div class="detail-meta">';
+    html += `<div><strong>From:</strong> ${esc(m.from_addr)}</div>`;
+    html += `<div><strong>To:</strong> ${esc(m.to_addr)}</div>`;
+    html += `<div><strong>Received:</strong> ${date}</div>`;
+    if (m.tag) html += `<div><strong>Tag:</strong> <span class="tag-badge">${esc(m.tag)}</span></div>`;
+    html += '</div>';
+
+    html += '<div class="detail-body">';
+    if (m.body_html) {
+      html += `<iframe class="html-body" id="detail-html-body" sandbox=""></iframe>`;
+    } else {
+      html += `<pre class="text-body">${esc(m.body_text)}</pre>`;
+    }
+    html += '</div>';
+
+    if (atts.length) {
+      html += '<div class="detail-attachments">';
+      html += `<h3>Attachments (${atts.length})</h3><ul>`;
+      for (const a of atts) {
+        const size = a.size ? ` (${(a.size / 1024).toFixed(1)} KB)` : '';
+        html += `<li><a href="${esc(a.url)}">${esc(a.filename)}</a><span class="size">${size}</span></li>`;
+      }
+      html += '</ul></div>';
+    }
+
+    const content = document.getElementById('detail-content');
+    content.innerHTML = html;
+
+    if (m.body_html) {
+      const iframe = document.getElementById('detail-html-body');
+      if (iframe) iframe.srcdoc = m.body_html;
+    }
+  }
+
+  function renderTags(data) {
+    for (const a of document.querySelectorAll('#tag-list .tag-chip')) {
+      a.classList.toggle('tag-active', a.dataset.tag === data.current_tag);
+    }
+  }
+
+  function syncInputs(data) {
+    const si = document.getElementById('search-input');
+    if (si && data.query != null) si.value = data.query;
+  }
+
+  function updateUrl(data) {
+    const p = {};
+    if (data.query) p.q = data.query;
+    if (data.current_tag) p.tag = data.current_tag;
+    if (data.page > 1) p.page = data.page;
+    const qs = Object.keys(p).length ? '?' + new URLSearchParams(p) : '';
+    history.replaceState(null, '', qs);
+  }
+
+  const searchInput = document.getElementById('search-input');
+  let searchTimer;
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => loadInbox({ q: searchInput.value, page: 1 }), 250);
+    });
+  }
+
+  for (const a of document.querySelectorAll('#tag-list .tag-chip')) {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      loadInbox({ tag: a.dataset.tag, page: 1 });
+    });
+  }
+
+  document.getElementById('btn-reload').addEventListener('click', () => loadInbox({}));
+  document.getElementById('search-form').addEventListener('submit', e => e.preventDefault());
+
+  for (const row of document.querySelectorAll('#inbox-list .msg-row')) {
+    row.addEventListener('click', () => {
+      selectMessage(parseInt(row.dataset.id));
+    });
+  }
+
+  {% if message_id %}
+    selectMessage({{ message_id | tojson | safe }});
+  {% endif %}
+}
+</script>
 {% endblock %}

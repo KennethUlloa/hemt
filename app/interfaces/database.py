@@ -20,6 +20,10 @@ class DatabaseBackend(ABC):
         ...
 
     @abstractmethod
+    def set_user_active(self, user_id: int, is_active: bool) -> bool:
+        ...
+
+    @abstractmethod
     def create_message(
         self,
         user_id: int,
@@ -129,4 +133,14 @@ class DatabaseBackend(ABC):
 
     @abstractmethod
     def get_total_search_results(self, user_id: int, query: str) -> int:
+        ...
+
+    @abstractmethod
+    def search_messages_by_tag(
+        self, user_id: int, query: str, tag: str, limit: int = 50, offset: int = 0
+    ) -> list[dict]:
+        ...
+
+    @abstractmethod
+    def get_total_search_results_by_tag(self, user_id: int, query: str, tag: str) -> int:
         ...

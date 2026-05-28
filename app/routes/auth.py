@@ -22,6 +22,10 @@ def login_action():
         flash("Invalid username or password", "error")
         return render_template("login.html")
 
+    if not user.get("is_active", True):
+        flash("Account is disabled. Contact an administrator.", "error")
+        return render_template("login.html")
+
     session_id = create_session(user["id"])
     resp = make_response(redirect(url_for("web.inbox")))
     resp.set_cookie("sid", session_id, max_age=7 * 86400, httponly=True, samesite="Lax")

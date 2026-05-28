@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, abort, send_file, g, flash, redirect, url_for
+from flask import Blueprint, render_template, request, abort, send_file, g, flash, redirect, url_for, jsonify
 from markupsafe import Markup
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -17,18 +17,12 @@ def docs():
     return render_template("docs.html", api_base_url=base_url)
 
 
-@bp.route("/")
-@login_required
-def inbox():
-    user_id = g.user_id
-    tag = request.args.get("tag", "")
-    q = request.args.get("q", "").strip()
-
-    page = request.args.get("page", 1, type=int)
-    per_page = 25
+def _get_messages(user_id, tag, q, page, per_page=25):
     offset = (page - 1) * per_page
-
-    if q:
+    if q and tag:
+        messages = db.search_messages_by_tag(user_id, q, tag, limit=per_page, offset=offset)
+        total = db.get_total_search_results_by_tag(user_id, q, tag)
+    elif q:
         messages = db.search_messages(user_id, q, limit=per_page, offset=offset)
         total = db.get_total_search_results(user_id, q)
     elif tag:
@@ -37,9 +31,41 @@ def inbox():
     else:
         messages = db.get_messages_for_user(user_id, limit=per_page, offset=offset)
         total = db.get_total_messages_for_user(user_id)
-
-    total_pages = (total + per_page - 1) // per_page
+    total_pages = max(1, (total + per_page - 1) // per_page)
     tags = db.get_all_tags_for_user(user_id)
+    return messages, total_pages, tags
+
+
+@bp.route("/api/_inbox")
+@login_required
+def inbox_json():
+    user_id = g.user_id
+    tag = request.args.get("tag", "")
+    q = request.args.get("q", "").strip()
+    page = request.args.get("page", 1, type=int)
+
+    messages, total_pages, tags = _get_messages(user_id, tag, q, page)
+
+    return jsonify(
+        messages=messages,
+        tags=tags,
+        page=page,
+        total_pages=total_pages,
+        current_tag=tag,
+        query=q,
+    )
+
+
+@bp.route("/")
+@login_required
+def inbox():
+    user_id = g.user_id
+    tag = request.args.get("tag", "")
+    q = request.args.get("q", "").strip()
+    page = request.args.get("page", 1, type=int)
+    message_id = request.args.get("mid", type=int)
+
+    messages, total_pages, tags = _get_messages(user_id, tag, q, page)
 
     return render_template(
         "inbox.html",
@@ -49,6 +75,7 @@ def inbox():
         tags=tags,
         current_tag=tag,
         query=q,
+        message_id=message_id,
     )
 
 
@@ -63,6 +90,28 @@ def message_detail(message_id):
 
     attachments = db.get_attachments_for_message(message_id)
     return render_template("message.html", message=msg, attachments=attachments)
+
+
+@bp.route("/api/_message/<int:message_id>")
+@login_required
+def message_detail_json(message_id):
+    user_id = g.user_id
+
+    msg = db.get_message_by_id(message_id)
+    if not msg or msg["user_id"] != user_id:
+        abort(404)
+
+    attachments = db.get_attachments_for_message(message_id)
+    return jsonify(
+        message=msg,
+        attachments=[{
+            "id": a["id"],
+            "filename": a["filename"],
+            "content_type": a["content_type"],
+            "size": a["size"],
+            "url": url_for("web.download_attachment", attachment_id=a["id"]),
+        } for a in attachments],
+    )
 
 
 @bp.route("/attachment/<int:attachment_id>")
@@ -207,4 +256,30 @@ def settings_delete_api_key():
         flash("API key deleted", "success")
     else:
         flash("API key not found", "error")
+    return redirect(url_for("web.settings_page"))
+
+
+@bp.route("/settings/toggle-active", methods=["POST"])
+@login_required
+def settings_toggle_active():
+    user_id = g.user_id
+    user = db.get_user_by_id(user_id)
+    if not user:
+        flash("User not found", "error")
+        return redirect(url_for("web.settings_page"))
+
+    new_state = not user.get("is_active", True)
+    db.set_user_active(user_id, new_state)
+    flash("Account disabled" if not new_state else "Account enabled", "success")
+
+    if not new_state:
+        from flask import make_response
+        from app.auth.helpers import destroy_session
+        session_id = request.cookies.get("sid")
+        if session_id:
+            destroy_session(session_id)
+        resp = make_response(redirect(url_for("auth.login_page")))
+        resp.set_cookie("sid", "", max_age=0)
+        return resp
+
     return redirect(url_for("web.settings_page"))

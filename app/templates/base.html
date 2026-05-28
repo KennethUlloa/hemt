@@ -7,11 +7,11 @@
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='logo.svg') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
   <nav class="navbar">
     <div class="container">
       <a href="{{ url_for('web.docs') }}" class="brand">
-        <img src="{{ url_for('static', filename='logo.svg') }}" alt="HEMT" class="brand-logo"> HEMT
+        <img src="{{ url_for('static', filename='logo.svg') }}" alt="HEMT" class="brand-logo"><span>HEMT</span>
       </a>
       {% if g.user_id %}
         <div class="nav-links">
@@ -67,5 +67,6 @@
       });
     }
   </script>
+  {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -38,9 +38,13 @@ def create_app(config_class=Config):
         if session_id:
             data = get_session_data(session_id)
             if data and "user_id" in data:
-                g.user_id = data["user_id"]
                 user = db.get_user_by_id(data["user_id"])
-                g.username = user["username"] if user else None
+                if user and user.get("is_active", True):
+                    g.user_id = data["user_id"]
+                    g.username = user["username"]
+                else:
+                    g.user_id = None
+                    g.username = None
             else:
                 g.user_id = None
                 g.username = None
@@ -61,6 +65,13 @@ def _run_migrations():
     tables = inspector.get_table_names()
 
     with engine.begin() as conn:
+        if "users" in tables:
+            cols = [c["name"] for c in inspector.get_columns("users")]
+            if "is_active" not in cols:
+                conn.execute(text(
+                    "ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT 1"
+                ))
+
         if "api_keys" in tables:
             cols = [c["name"] for c in inspector.get_columns("api_keys")]
             if "scopes" not in cols:
