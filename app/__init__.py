@@ -24,6 +24,10 @@ def create_app(config_class=Config):
     app.register_blueprint(web.bp)
     app.register_blueprint(api.bp)
 
+    @app.get("/health")
+    def health():
+        return "OK", 200
+
     from app.limiter import limiter
     limiter.init_app(app)
 
