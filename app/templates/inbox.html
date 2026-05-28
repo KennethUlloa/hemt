@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Inbox - HEMT{% endblock %}
+{% block content %}
+<div class="inbox-header">
+  <h1>Inbox</h1>
+  <form method="get" class="search-form" action="{{ url_for('web.inbox') }}">
+    <input type="search" name="q" class="search-input" placeholder="Search subject, sender, recipient, tag..." value="{{ query or '' }}">
+    {% if current_tag %}<input type="hidden" name="tag" value="{{ current_tag }}">{% endif %}
+  </form>
+  {% if tags %}
+    <div class="tag-list">
+      <a href="{{ url_for('web.inbox', q=query if query else None) }}" class="tag-chip {% if not current_tag and not query %}tag-active{% endif %}">All</a>
+      {% for tag in tags %}
+        <a href="{{ url_for('web.inbox', tag=tag, q=query if query else None) }}" class="tag-chip {% if current_tag == tag %}tag-active{% endif %}">{{ tag }}</a>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+
+{% if messages %}
+  <table class="message-table">
+    <thead>
+      <tr>
+        <th>From</th>
+        <th>To</th>
+        <th>Subject</th>
+        <th>Tag</th>
+        <th>Received</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for msg in messages %}
+        <tr onclick="window.location='{{ url_for('web.message_detail', message_id=msg.id) }}'">
+          <td class="from">{{ msg.from_addr }}</td>
+          <td class="to">{{ msg.to_addr }}</td>
+          <td class="subject">{{ msg.subject or '(no subject)' }}</td>
+          <td>{% if msg.tag %}<span class="tag-badge">{{ msg.tag }}</span>{% endif %}</td>
+          <td class="date">{{ msg.received_at[:19] | replace('T', ' ') }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="pagination">
+    {% if page > 1 %}
+      <a href="{{ url_for('web.inbox', page=page-1, tag=current_tag if current_tag else None, q=query if query else None) }}" class="btn btn-sm">&laquo; Previous</a>
+    {% endif %}
+    <span class="page-info">Page {{ page }} of {{ total_pages }}</span>
+    {% if page < total_pages %}
+      <a href="{{ url_for('web.inbox', page=page+1, tag=current_tag if current_tag else None, q=query if query else None) }}" class="btn btn-sm">Next &raquo;</a>
+    {% endif %}
+  </div>
+{% else %}
+  <div class="empty-state">
+    {% if query %}
+      <p>No results for "{{ query }}".</p>
+    {% else %}
+      <p>No messages yet.</p>
+      <p class="hint">Use an API key to send a test email, or compose one from here.</p>
+    {% endif %}
+  </div>
+{% endif %}
+{% endblock %}

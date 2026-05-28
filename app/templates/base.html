@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}HEMT{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container">
+      <a href="{{ url_for('web.docs') }}" class="brand">HEMT - Http Email Trap</a>
+      {% if g.user_id %}
+        <div class="nav-links">
+          <a href="{{ url_for('web.inbox') }}" class="nav-link">Inbox</a>
+          <a href="{{ url_for('web.compose_page') }}" class="nav-link">Compose</a>
+          <a href="{{ url_for('web.settings_page') }}" class="nav-link">Settings</a>
+          <a href="{{ url_for('web.docs') }}" class="nav-link">API Docs</a>
+        </div>
+        <div class="nav-right">
+          <span class="user-info">{{ g.username }}</span>
+          <a href="{{ url_for('auth.logout') }}" class="btn btn-sm">Logout</a>
+        </div>
+      {% else %}
+        <div class="nav-links">
+          <a href="{{ url_for('web.docs') }}" class="nav-link">API Docs</a>
+        </div>
+        <div class="nav-right">
+          <a href="{{ url_for('auth.login_page') }}" class="btn btn-sm">Login</a>
+        </div>
+      {% endif %}
+    </div>
+  </nav>
+
+  <main class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <script>
+    function copyText(btn) {
+      const code = btn.parentElement.querySelector('code');
+      if (!code) return;
+      const text = code.textContent.trim();
+      navigator.clipboard.writeText(text).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        btn.classList.add('btn-copied');
+        setTimeout(() => { btn.textContent = orig; btn.classList.remove('btn-copied'); }, 2000);
+      }).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      });
+    }
+  </script>
+</body>
+</html>

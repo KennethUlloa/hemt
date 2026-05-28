@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Settings - HEMT{% endblock %}
+{% block content %}
+<div class="settings-page">
+  <h1>Settings</h1>
+
+  <section class="settings-section">
+    <h2>Profile</h2>
+    <div class="settings-card">
+      <div class="field-row">
+        <span class="field-label">Username</span>
+        <span class="field-value">{{ user.username }}</span>
+      </div>
+
+      <form method="post" action="{{ url_for('web.settings_change_password') }}" class="password-form">
+        <h3>Change Password</h3>
+        <div class="form-group">
+          <label for="current_password">Current Password</label>
+          <input type="password" id="current_password" name="current_password" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="new_password">New Password</label>
+            <input type="password" id="new_password" name="new_password" required minlength="4">
+          </div>
+          <div class="form-group">
+            <label for="confirm_password">Confirm</label>
+            <input type="password" id="confirm_password" name="confirm_password" required minlength="4">
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Update Password</button>
+      </form>
+    </div>
+  </section>
+
+  <section class="settings-section">
+    <h2>API Keys</h2>
+
+    <div class="settings-card">
+      {% if api_keys %}
+        <ul class="apikey-list">
+          {% for key in api_keys %}
+            <li class="apikey-row {% if not key.is_active %}revoked{% endif %}">
+              <div class="apikey-info">
+                <strong>{{ key.name }}</strong>
+                <code>{{ key.prefix }}...</code>
+                <span class="badge {% if key.is_active %}badge-active{% else %}badge-revoked{% endif %}">
+                  {{ key.is_active and 'active' or 'revoked' }}
+                </span>
+                {% if key.tag %}
+                  <span class="tag-badge">{{ key.tag }}</span>
+                {% endif %}
+                <span class="date-hint">created {{ key.created_at[:10] }}</span>
+                {% if key.scopes %}
+                  <span class="date-hint">scopes: {{ key.scopes }}</span>
+                {% endif %}
+              </div>
+              <div class="apikey-actions">
+                <form method="post" action="{{ url_for('web.settings_toggle_api_key') }}" class="inline-form">
+                  <input type="hidden" name="key_id" value="{{ key.id }}">
+                  <input type="hidden" name="is_active" value="{{ '0' if key.is_active else '1' }}">
+                  <button type="submit" class="btn btn-sm {{ 'btn-warning' if key.is_active else 'btn-primary' }}">
+                    {{ 'Deactivate' if key.is_active else 'Activate' }}
+                  </button>
+                </form>
+                <form method="post" action="{{ url_for('web.settings_delete_api_key') }}" class="inline-form" onsubmit="return confirm('Delete API key {{ key.name }}?')">
+                  <input type="hidden" name="key_id" value="{{ key.id }}">
+                  <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                </form>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="empty-hint">No API keys yet.</p>
+      {% endif %}
+
+      <details class="create-apikey-details">
+        <summary>Create new API key</summary>
+        <form method="post" action="{{ url_for('web.settings_create_api_key') }}" class="create-apikey-form">
+          <div class="form-group">
+            <label for="key-name">Key name</label>
+            <input type="text" id="key-name" name="name" placeholder="e.g. my-service" required>
+          </div>
+          <div class="form-group">
+            <label for="key-tag">Tag <span class="hint">(optional, for grouping emails)</span></label>
+            <input type="text" id="key-tag" name="tag" placeholder="e.g. support, newsletter, alerts">
+          </div>
+          <div class="form-group">
+            <label>Scopes</label>
+            <div class="scope-checkboxes">
+              <label><input type="checkbox" name="scopes" value="mail:send" checked> mail:send</label>
+              <label><input type="checkbox" name="scopes" value="mail:read" checked> mail:read</label>
+              <label><input type="checkbox" name="scopes" value="keys:manage" checked> keys:manage</label>
+            </div>
+            <span class="hint">Select the permissions this key will have</span>
+          </div>
+          <button type="submit" class="btn btn-sm btn-primary">Generate</button>
+        </form>
+      </details>
+    </div>
+  </section>
+</div>
+{% endblock %}

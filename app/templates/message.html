@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}{{ message.subject or '(no subject)' }} - HEMT{% endblock %}
+{% block content %}
+<div class="message-header">
+  <a href="{{ url_for('web.inbox') }}" class="btn btn-sm">&larr; Back to Inbox</a>
+  <h1>{{ message.subject or '(no subject)' }}</h1>
+</div>
+
+<div class="message-meta">
+  <dl>
+    <dt>From:</dt>
+    <dd>{{ message.from_addr }}</dd>
+    <dt>To:</dt>
+    <dd>{{ message.to_addr }}</dd>
+    <dt>Received:</dt>
+    <dd>{{ message.received_at[:19] | replace('T', ' ') }}</dd>
+  </dl>
+</div>
+
+<div class="message-body">
+  {% if message.body_html %}
+    <iframe class="html-body" id="html-body" sandbox=""></iframe>
+    <script nonce="emailtrap">
+      document.getElementById('html-body').srcdoc = {{ message.body_html | tojson | safe }};
+    </script>
+  {% else %}
+    <pre class="text-body">{{ message.body_text }}</pre>
+  {% endif %}
+</div>
+
+{% if attachments %}
+  <div class="attachments">
+    <h2>Attachments ({{ attachments | length }})</h2>
+    <ul>
+      {% for att in attachments %}
+        <li>
+          <a href="{{ url_for('web.download_attachment', attachment_id=att.id) }}">
+            {{ att.filename }}
+          </a>
+          <span class="size">({{ (att.size / 1024) | round(1) }} KB)</span>
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}
+{% endblock %}

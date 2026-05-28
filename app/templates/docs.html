@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}API Docs - HEMT{% endblock %}
+{% block content %}
+<div class="docs-page">
+  <h1>API Documentation</h1>
+  <p class="docs-subtitle">Base URL: <code>{{ api_base_url }}/api/v1</code></p>
+
+  <section class="docs-section">
+    <h2>Authentication</h2>
+    <p>All API endpoints require a Bearer token in the <code>Authorization</code> header. Create an API key from the <a href="{{ url_for('web.settings_page') }}">Settings</a> page or via <code>POST /api/v1/api-keys</code> (requires an existing key).</p>
+  </section>
+
+  <section class="docs-section">
+    <h2>API Keys</h2>
+    <p>API keys authenticate requests and can optionally be assigned a <strong>tag</strong>. Emails sent with a tagged key are automatically grouped under that tag in your inbox. You can also override the tag per-request with the <code>X-HEMT-Tag</code> header.</p>
+
+    <article class="endpoint-card">
+      <div class="endpoint-head">
+        <span class="meth get">GET</span>
+        <code>/api-keys</code>
+      </div>
+      <p>List all your API keys.</p>
+      <pre class="code-block">curl http://{{ api_base_url }}/api/v1/api-keys \
+  -H "Authorization: Bearer et_abc123..."</pre>
+      <pre class="resp-block">{
+  "api_keys": [
+    {
+      "id": 1,
+      "name": "my-service",
+      "prefix": "a1b2c3d4",
+      "scopes": "mail:send,mail:read",
+      "tag": "support",
+      "is_active": true,
+      "created_at": "2026-05-27T12:00:00",
+      "last_used_at": "2026-05-27T14:30:00"
+    }
+  ]
+}</pre>
+    </article>
+
+    <article class="endpoint-card">
+      <div class="endpoint-head">
+        <span class="meth post">POST</span>
+        <code>/api-keys</code>
+      </div>
+      <p>Create a new named API key with optional scopes and tag.</p>
+      <pre class="code-block">curl -X POST http://{{ api_base_url }}/api/v1/api-keys \
+  -H "Authorization: Bearer et_abc123..." \
+  -H "Content-Type: application/json" \
+  -d '{"name": "support-bot", "scopes": "mail:send", "tag": "support"}'</pre>
+      <pre class="resp-block">{"id": 2, "name": "support-bot", "token": "et_def456...", "scopes": "mail:send", "tag": "support"}</pre>
+    </article>
+
+    <article class="endpoint-card">
+      <div class="endpoint-head">
+        <span class="meth delete">DELETE</span>
+        <code>/api-keys/&lt;id&gt;</code>
+      </div>
+      <p>Revoke and remove an API key.</p>
+      <pre class="code-block">curl -X DELETE http://{{ api_base_url }}/api/v1/api-keys/2 \
+  -H "Authorization: Bearer et_abc123..."</pre>
+      <pre class="resp-block">{"status": "ok"}</pre>
+    </article>
+  </section>
+
+  <section class="docs-section">
+    <h2>Incoming Mail</h2>
+
+    <article class="endpoint-card">
+      <div class="endpoint-head">
+        <span class="meth post">POST</span>
+        <code>/incoming-mail</code>
+      </div>
+      <p>Simulate receiving an email. The <code>to</code> address is stored as metadata; no pre-registration required. If the API key has a tag, the message is grouped under that tag. Override per-request with the <code>X-HEMT-Tag</code> header.</p>
+
+      <h3>Simple text email</h3>
+      <pre class="code-block">curl -X POST http://{{ api_base_url }}/api/v1/incoming-mail \
+  -H "Authorization: Bearer et_abc123..." \
+  -F "to=inbox@myapp.com" \
+  -F "from=user@external.com" \
+  -F "subject=Hello" \
+  -F "body_text=This is the email body."</pre>
+
+      <h3>With HTML body</h3>
+      <pre class="code-block">curl -X POST http://{{ api_base_url }}/api/v1/incoming-mail \
+  -H "Authorization: Bearer et_abc123..." \
+  -F "to=inbox@myapp.com" \
+  -F "from=user@external.com" \
+  -F "subject=Hello" \
+  -F 'body_html=&lt;h1&gt;Hello&lt;/h1&gt;&lt;p&gt;HTML content&lt;/p&gt;'</pre>
+
+      <h3>With file attachments</h3>
+      <pre class="code-block">curl -X POST http://{{ api_base_url }}/api/v1/incoming-mail \
+  -H "Authorization: Bearer et_abc123..." \
+  -F "to=inbox@myapp.com" \
+  -F "from=user@external.com" \
+  -F "subject=Report" \
+  -F "attachment=@/path/to/report.pdf" \
+  -F "attachment=@/path/to/image.png"</pre>
+
+      <pre class="resp-block">{"message_id": 42, "status": "ok", "tag": "support"}</pre>
+    </article>
+  </section>
+
+  <section class="docs-section">
+    <h2>Message Retrieval</h2>
+
+    <article class="endpoint-card">
+      <div class="endpoint-head">
+        <span class="meth get">GET</span>
+        <code>/messages</code>
+      </div>
+      <p>List messages, newest first. Optionally filter by <code>tag</code>.</p>
+      <pre class="code-block">curl "http://{{ api_base_url }}/api/v1/messages?page=1&per_page=25" \
+  -H "Authorization: Bearer et_abc123..."
+
+curl "http://{{ api_base_url }}/api/v1/messages?tag=support" \
+  -H "Authorization: Bearer et_abc123..."</pre>
+      <pre class="resp-block">{
+  "messages": [
+    {
+      "id": 1,
+      "from_addr": "alice@example.com",
+      "to_addr": "inbox@myapp.com",
+      "subject": "Hello",
+      "body_text": "...",
+      "body_html": "",
+      "tag": "support",
+      "received_at": "2026-05-27T12:00:00"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "per_page": 25,
+  "tag": null
+}</pre>
+    </article>
+
+    <article class="endpoint-card">
+      <div class="endpoint-head">
+        <span class="meth get">GET</span>
+        <code>/messages/&lt;id&gt;</code>
+      </div>
+      <p>Get a single message with its attachments.</p>
+      <pre class="code-block">curl http://{{ api_base_url }}/api/v1/messages/1 \
+  -H "Authorization: Bearer et_abc123..."</pre>
+      <pre class="resp-block">{
+  "id": 1,
+  "from_addr": "alice@example.com",
+  "to_addr": "inbox@myapp.com",
+  "subject": "Hello",
+  "body_text": "...",
+  "body_html": "",
+  "tag": "support",
+  "received_at": "2026-05-27T12:00:00",
+  "attachments": [
+    {
+      "id": 1,
+      "filename": "report.pdf",
+      "content_type": "application/pdf",
+      "size": 10240
+    }
+  ]
+}</pre>
+    </article>
+  </section>
+
+  <section class="docs-section">
+    <h2>Tags</h2>
+
+    <article class="endpoint-card">
+      <div class="endpoint-head">
+        <span class="meth get">GET</span>
+        <code>/tags</code>
+      </div>
+      <p>List all tags you've used to organize your messages.</p>
+      <pre class="code-block">curl http://{{ api_base_url }}/api/v1/tags \
+  -H "Authorization: Bearer et_abc123..."</pre>
+      <pre class="resp-block">{"tags": ["support", "newsletter", "alerts"]}</pre>
+    </article>
+  </section>
+</div>
+{% endblock %}
