@@ -13,7 +13,8 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
 
-    os.makedirs(os.path.join(os.getcwd(), "instance"), exist_ok=True)
+    if Config.SQLALCHEMY_DATABASE_URI.startswith("sqlite"):
+        os.makedirs(os.path.join(os.getcwd(), "instance"), exist_ok=True)
 
     sqla_db.init_app(app)
 

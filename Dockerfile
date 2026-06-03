@@ -14,6 +14,4 @@ RUN chmod +x entrypoint.sh
 
 EXPOSE 5000
 
-VOLUME ["/app/instance", "/app/attachments"]
-
 ENTRYPOINT ["/app/entrypoint.sh"]

@@ -7,3 +7,4 @@ venv
 instance/
 attachments/
 *.db
+.DS_Store
