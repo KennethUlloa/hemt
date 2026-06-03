@@ -1,3 +1,4 @@
+import logging
 from flask import Blueprint, request, jsonify, abort, g
 
 from app.auth.decorators import api_key_required, require_scope
@@ -60,6 +61,7 @@ def delete_api_key_endpoint(key_id):
 @api_key_required
 @require_scope("mail:send")
 def incoming_mail():
+    logging.getLogger("app").info("Size of request: %s", request.content_length)
     user_id = g.user_id
     api_key_tag = getattr(g, "api_key_tag", "")
 

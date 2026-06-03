@@ -1,4 +1,5 @@
 import os
+import logging
 
 from flask import Flask, g, request
 from sqlalchemy import inspect, text
@@ -19,6 +20,7 @@ def create_app(config_class=Config):
     sqla_db.init_app(app)
 
     container.storage = container.create_storage_backend()
+    logging.getLogger("app").setLevel(logging.INFO)
 
     from app.routes import auth, web, api
     app.register_blueprint(auth.bp)
